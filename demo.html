@@ -3,15 +3,15 @@
   <head>
     <meta charset="utf-8">
     <title>FakeCalls Demo</title>
-    <style>
-    </style>
+    <style></style>
   </head>
   <body>
-    <div id="container">
-    </div>
+    <div id="container"></div>
     <script src="build/fake-calls.js"></script>
     <script>
-      let fc = fakeCalls();
+      let fc = fakeCalls({
+        container: document.getElementById('container')
+      });
     </script>
   </body>
 </html>
