@@ -3098,15 +3098,125 @@ exports.default = fakeCalls;
 Object.defineProperty(exports, "__esModule", {
   value: true
 });
+
+var _utils = require('./utils');
+
 var manageCalls = function manageCalls(config) {
+
+  var calcCallNum = function calcCallNum(from, to) {
+    return (Date.UTC(to.getUTCFullYear(), to.getUTCMonth(), to.getUTCDate(), to.getUTCHours()) - Date.UTC(from.getUTCFullYear(), from.getUTCMonth(), from.getUTCDate(), from.getUTCHours())) / 3600000 + 1;
+  };
+
+  var calcDaysNum = function calcDaysNum(from, to) {
+    return (Date.UTC(to.getUTCFullYear(), to.getUTCMonth(), to.getUTCDate()) - Date.UTC(from.getUTCFullYear(), from.getUTCMonth(), from.getUTCDate())) / 86400000 + 1;
+  };
+
+  var generateDayCounts = function generateDayCounts(inDays, inCounts, noise, fromHour, toHour) {
+    var dayCounts = [];
+
+    var fromPer = 1 - fromHour / 24;
+    var toPer = toHour / 24;
+
+    if (inDays === 2) {
+      dayCounts[0] = Math.round(inCounts * (fromPer / (fromPer + toPer)));
+      dayCounts[1] = inCounts - dayCounts[0];
+      return dayCounts;
+    }
+
+    var normNoise = noise / 100;
+    var calcCount = function calcCount(average, remaining) {
+      var noiseEff = average * normNoise;
+      var min = Math.floor(average - noiseEff);
+      var max = Math.ceil(average + noiseEff);
+      if (max > remaining) {
+        max = remaining;
+      }
+      if (min > max) {
+        min = max;
+      }
+      return min + Math.round((max - min) * Math.random());
+    };
+
+    var counts = inCounts;
+    dayCounts[0] = calcCount(inCounts / inDays * fromPer, counts);
+    counts -= dayCounts[0];
+    dayCounts[inDays - 1] = calcCount(counts / (inDays - 1) * toPer, counts);
+    counts -= dayCounts[inDays - 1];
+    for (var i, days = inDays - 2; days > 1; days -= 1) {
+      i = inDays - days - 1;
+      dayCounts[i] = calcCount(counts / days, counts);
+      counts -= dayCounts[i];
+    }
+    dayCounts[inDays - 2] = counts;
+    return dayCounts;
+  };
+
+  var generateCountByCall = function generateCountByCall(hours, hourIndex, dayCounts, inProfile) {
+    var calcCount = function calcCount(average, remaining, modifier) {
+      var count = Math.round(average * 2 * modifier * Math.random());
+      return count > remaining ? remaining : count;
+    };
+    var normProfile = function normProfile(profile, init, length) {
+      var sum = 0;
+      for (var i = init; i < length; i++) {
+        sum += profile[i];
+      }
+      var average = sum / (length - init);
+      var newProfile = [];
+      for (var _i = init; _i < length; _i++) {
+        newProfile[_i] = profile[_i] / average;
+      }
+      return newProfile;
+    };
+
+    var calls = [];
+    var hour = hourIndex;
+    var idc = 0;
+    var counts = dayCounts[0];
+    var dayHours = dayCounts.length > 1 ? 24 : hours + hour;
+    var profile = normProfile(inProfile, hour, dayHours);
+    for (var ih = 0; ih < hours; ih++) {
+      if (hour === dayHours - 1) {
+        calls[ih] = counts;
+        hour = 0;
+        idc += 1;
+        counts = dayCounts[idc];
+        dayHours = hours - 1 - ih > 24 ? 24 : hours - 1 - ih;
+        if (dayHours < 24) {
+          profile = normProfile(inProfile, 0, dayHours);
+        } else {
+          profile = inProfile;
+        }
+      } else {
+        calls[ih] = calcCount(counts / (dayHours - hour), counts, profile[hour]);
+        counts -= calls[ih];
+        hour += 1;
+      }
+    }
+    return calls;
+  };
+
   config.ps.on('make-call', function (call) {
-    console.log('callMade', call);
+    var hours = calcCallNum(call.from, call.to);
+    var days = calcDaysNum(call.from, call.to);
+    var hourIndex = call.from.getUTCHours();
+
+    var dayCounts = void 0;
+    if (days === 1) {
+      dayCounts = [call.count];
+    } else {
+      dayCounts = generateDayCounts(days, call.count, call.noise, hourIndex, call.to.getUTCHours() + 1);
+    }
+    console.log('dayCounts', dayCounts);
+
+    call.calls = generateCountByCall(hours, hourIndex, dayCounts, _utils.PROFILES[call.profile - 1]);
+    console.log('calls', call.calls);
   });
 };
 
 exports.default = manageCalls;
 
-},{}],115:[function(require,module,exports){
+},{"./utils":142}],115:[function(require,module,exports){
 'use strict';
 
 Object.defineProperty(exports, "__esModule", {
@@ -4804,10 +4914,12 @@ var generateID = exports.generateID = function generateID() {
   return id;
 };
 
+var PROFILES = exports.PROFILES = [[1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1], [0.08, 0.17, 0.33, 0.5, 0.67, 0.83, 1, 1.17, 1.33, 1.5, 1.67, 1.83, 2, 1.83, 1.67, 1.5, 1.33, 1.17, 1, 0.83, 0.67, 0.5, 0.33, 0.09], [2, 1.83, 1.67, 1.5, 1.33, 1.17, 1, 0.83, 0.67, 0.5, 0.33, 0.09, 0.08, 0.17, 0.33, 0.5, 0.67, 0.83, 1, 1.17, 1.33, 1.5, 1.67, 1.83]];
+
 var STYLE = '<style>\n  .fake-calls {\n    max-width: 40em;\n    font-family: sans-serif;\n    margin: auto;\n  }\n    .fake-calls .fc-input {\n      display: flex;\n      flex-wrap: wrap;\n    }\n    .fake-calls .fc-input > div {\n      margin-bottom: 1em;\n      display: flex;\n      align-items: center;\n      width: 50%;\n      flex-wrap: wrap;\n    }\n    .fake-calls label {\n      display: inline-block;\n      width: 5em;\n      padding-right: 1em;\n      text-align: right;\n      flex-shrink: 0;\n    }\n    .fake-calls input, .fake-calls select, .fake-calls button {\n      font-size: 100%;\n      font-family: sans-serif;\n      line-height: 1.15;\n      padding: .5em;\n      box-sizing: border-box;\n    }\n    .fake-calls .fc-profile-field {\n      width: 100% !important;\n    }\n    .fake-calls .fc-keys-field {\n      align-items: flex-start !important;\n      width: 100% !important;\n      flex-wrap: nowrap !important;\n    }\n    .fake-calls .fc-keys-container {\n      width: 100%;\n    }\n    .fake-calls .fc-buttons, .fake-calls .fc-post-buttons {\n      display: flex;\n    }\n    .fake-calls .fc-buttons {\n      background-color: #f7f7f7;\n      padding: 1em;\n    }\n    .fake-calls .fc-make {\n      margin-right: 1em;\n      width: 33%;\n    }\n    .fake-calls .fc-buttons > div {\n      width: 100%;\n    }\n    .fake-calls .fc-generated {\n      width: 100%;\n      margin-bottom: 1em;\n    }\n    .fake-calls .fc-post-buttons button {\n      width: 50%;\n    }\n    .fake-calls .fc-download {\n      margin-right: 1em;\n    }\n    .fake-calls .fc-errors {\n      font-size: 0.8em;\n      color: #b00;\n      cursor: default;\n      margin-top: .5em;\n    }\n    .fake-calls .qui .qui-user-input {\n      min-height: auto;\n    }\n    .fake-calls .qui .qui-value, .fake-calls .qui .qui-list-value {\n      margin-bottom: 0;\n    }\n    .fake-calls .dtp-picker input, .fake-calls .dtp-picker button {\n      padding: initial;\n    }\n</style>';
 
 var generateHTML = exports.generateHTML = function generateHTML(id) {
-  return '<div class="fake-calls" id="fake-calls-' + id + '">\n    ' + STYLE + '\n    <div class="fc-input">\n      <div class="fc-from-field">\n        <label for="fc-' + id + '-from">From</label>\n        <input type="text" class="fc-from" id="fc-' + id + '-from"></input>\n      </div>\n      <div class="fc-to-field">\n        <label for="fc-' + id + '-to">To</label>\n        <input type="text" class="fc-to" id="fc-' + id + '-to"></input>\n      </div>\n      <div class="fc-count-field">\n        <label for="fc-' + id + '-count">Count</label>\n        <input type="number" class="fc-count" id="fc-' + id + '-count" min="0"\n          value="0"></input>\n      </div>\n      <div class="fc-noise-field">\n        <label for="fc-' + id + '-noise">Noise (%)</label>\n        <input type="number" step="any" min="0" max="100" class="fc-noise"\n          id="fc-' + id + '-noise" value="50"></input>\n      </div>\n      <div class="fc-profile-field">\n        <label for="fc-' + id + '-profile">Profile</label>\n        <select class="fc-profile" id="fc-' + id + '-profile">\n          <option value="1">Valued equally distributed</option>\n          <option value="2">Higher values in middle hours</option>\n          <option value="3">Lower values in middle hours</option>\n        </select>\n      </div>\n      <div class="fc-keys-field">\n        <label>Custom fields for the calls</label>\n        <div class="fc-keys-container" id="fc-' + id + '-keys-container"></div>\n      </div>\n    </div>\n    <div class="fc-buttons">\n      <button class="fc-make">Make calls</button>\n      <div>\n        <input type="text" class="fc-generated" placeholder="Generated ID">\n        </input>\n        <div class="fc-post-buttons">\n          <button class="fc-download" disabled>Download CSV</button>\n          <button class="fc-remove" disabled>Remove Calls</button>\n        </div>\n      </div>\n    </div>\n    <div class="fc-errors"></div>\n  </div>';
+  return '<div class="fake-calls" id="fake-calls-' + id + '">\n    ' + STYLE + '\n    <div class="fc-input">\n      <div class="fc-from-field">\n        <label for="fc-' + id + '-from">From</label>\n        <input type="text" class="fc-from" id="fc-' + id + '-from"></input>\n      </div>\n      <div class="fc-to-field">\n        <label for="fc-' + id + '-to">To</label>\n        <input type="text" class="fc-to" id="fc-' + id + '-to"></input>\n      </div>\n      <div class="fc-count-field">\n        <label for="fc-' + id + '-count">Count</label>\n        <input type="number" class="fc-count" id="fc-' + id + '-count" min="0"\n          value="0"></input>\n      </div>\n      <div class="fc-noise-field">\n        <label for="fc-' + id + '-noise">Noise (%)</label>\n        <input type="number" step="any" min="0" max="100" class="fc-noise"\n          id="fc-' + id + '-noise" value="50"></input>\n      </div>\n      <div class="fc-profile-field">\n        <label for="fc-' + id + '-profile">Profile</label>\n        <select class="fc-profile" id="fc-' + id + '-profile">\n          <option value="1">Valued equally distributed</option>\n          <option value="2">Higher values in middle hours</option>\n          <option value="3">Lower values in middle hours</option>\n        </select>\n      </div>\n      <div class="fc-keys-field">\n        <label>Custom fields for the calls</label>\n        <div class="fc-keys-container" id="fc-' + id + '-keys-container"></div>\n      </div>\n    </div>\n    <div class="fc-buttons">\n      <button class="fc-make">Make calls</button>\n      <div>\n        <select class="fc-generated"></select>\n        <div class="fc-post-buttons">\n          <button class="fc-download" disabled>Download CSV</button>\n          <button class="fc-remove" disabled>Remove Calls</button>\n        </div>\n      </div>\n    </div>\n    <div class="fc-errors"></div>\n  </div>';
 };
 
 },{}]},{},[112]);

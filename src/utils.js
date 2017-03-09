@@ -15,6 +15,14 @@ export let generateID = function generateID(prefix = '') {
   return id;
 };
 
+export const PROFILES = [
+  [1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1],
+  [0.08, 0.17, 0.33, 0.5, 0.67, 0.83, 1, 1.17, 1.33, 1.5, 1.67, 1.83, 2, 1.83,
+    1.67, 1.5, 1.33, 1.17, 1, 0.83, 0.67, 0.5, 0.33, 0.09],
+  [2, 1.83, 1.67, 1.5, 1.33, 1.17, 1, 0.83, 0.67, 0.5, 0.33, 0.09, 0.08, 0.17,
+    0.33, 0.5, 0.67, 0.83, 1, 1.17, 1.33, 1.5, 1.67, 1.83]
+];
+
 const STYLE = `<style>
   .fake-calls {
     max-width: 40em;
@@ -136,8 +144,7 @@ export let generateHTML = function generateHTML(id) {
     <div class="fc-buttons">
       <button class="fc-make">Make calls</button>
       <div>
-        <input type="text" class="fc-generated" placeholder="Generated ID">
-        </input>
+        <select class="fc-generated"></select>
         <div class="fc-post-buttons">
           <button class="fc-download" disabled>Download CSV</button>
           <button class="fc-remove" disabled>Remove Calls</button>
