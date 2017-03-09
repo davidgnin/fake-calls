@@ -2939,6 +2939,30 @@ module.exports = toPlainObject;
 Object.defineProperty(exports, "__esModule", {
   value: true
 });
+var configErrors = function configErrors(config) {
+  var emptyErrors = function emptyErrors() {
+    var errors = config.gui.errors;
+    while (errors.firstChild) {
+      errors.removeChild(errors.firstChild);
+    }
+  };
+
+  config.ps.on('error', function (message) {
+    emptyErrors();
+    config.gui.errors.appendChild(document.createTextNode(message + ' (click to dismiss)'));
+  });
+
+  config.gui.errors.addEventListener('click', emptyErrors);
+};
+
+exports.default = configErrors;
+
+},{}],111:[function(require,module,exports){
+'use strict';
+
+Object.defineProperty(exports, "__esModule", {
+  value: true
+});
 
 var _utils = require('./utils');
 
@@ -2964,6 +2988,10 @@ var createGUI = function createGUI(config) {
   gui.profile = document.querySelector(selector + ' .fc-profile');
   gui.noise = document.querySelector(selector + ' .fc-noise');
   gui.quiContainer = document.querySelector(selector + ' .fc-keys-container');
+  gui.make = document.querySelector(selector + ' .fc-make');
+  gui.download = document.querySelector(selector + ' .fc-download');
+  gui.remove = document.querySelector(selector + ' .fc-remove');
+  gui.errors = document.querySelector(selector + ' .fc-errors');
 
   //Validation
   for (var key in gui) {
@@ -2991,7 +3019,7 @@ var createGUI = function createGUI(config) {
 
 exports.default = createGUI;
 
-},{"./query-ui/datetimepicker/main":128,"./query-ui/main":133,"./utils":139}],111:[function(require,module,exports){
+},{"./query-ui/datetimepicker/main":131,"./query-ui/main":136,"./utils":142}],112:[function(require,module,exports){
 'use strict';
 
 var _typeof = typeof Symbol === "function" && typeof Symbol.iterator === "symbol" ? function (obj) { return typeof obj; } : function (obj) { return obj && typeof Symbol === "function" && obj.constructor === Symbol && obj !== Symbol.prototype ? "symbol" : typeof obj; };
@@ -3021,7 +3049,7 @@ function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { de
   return _main2.default;
 }, undefined);
 
-},{"./main":112}],112:[function(require,module,exports){
+},{"./main":113}],113:[function(require,module,exports){
 'use strict';
 
 Object.defineProperty(exports, "__esModule", {
@@ -3036,6 +3064,18 @@ var _create_gui = require('./create_gui');
 
 var _create_gui2 = _interopRequireDefault(_create_gui);
 
+var _config_errors = require('./config_errors');
+
+var _config_errors2 = _interopRequireDefault(_config_errors);
+
+var _prepare_call = require('./prepare_call');
+
+var _prepare_call2 = _interopRequireDefault(_prepare_call);
+
+var _manage_calls = require('./manage_calls');
+
+var _manage_calls2 = _interopRequireDefault(_manage_calls);
+
 function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { default: obj }; }
 
 var fakeCalls = function fakeCalls() {
@@ -3043,11 +3083,128 @@ var fakeCalls = function fakeCalls() {
 
   var config = (0, _prepare_config2.default)(input);
   config.gui = (0, _create_gui2.default)(config);
+
+  (0, _config_errors2.default)(config);
+
+  (0, _prepare_call2.default)(config);
+  (0, _manage_calls2.default)(config);
 };
 
 exports.default = fakeCalls;
 
-},{"./create_gui":110,"./prepare_config":113}],113:[function(require,module,exports){
+},{"./config_errors":110,"./create_gui":111,"./manage_calls":114,"./prepare_call":115,"./prepare_config":116}],114:[function(require,module,exports){
+'use strict';
+
+Object.defineProperty(exports, "__esModule", {
+  value: true
+});
+var manageCalls = function manageCalls(config) {
+  config.ps.on('make-call', function (call) {
+    console.log('callMade', call);
+  });
+};
+
+exports.default = manageCalls;
+
+},{}],115:[function(require,module,exports){
+'use strict';
+
+Object.defineProperty(exports, "__esModule", {
+  value: true
+});
+var prepareCall = function prepareCall(config) {
+  var parseDate = function parseDate(dateString) {
+    var wip = dateString.replace('Z', '').split('T');
+    if (wip.length === 2) {
+      wip[0] = wip[0].split('-');
+      wip[1] = wip[1].split(':');
+      if (wip[0].length === 3 && wip[1].length === 3) {
+        wip[1][2] = wip[1][2].split('.');
+        if (wip[1][2].length === 2) {
+          var d = {
+            year: parseInt(wip[0][0], 10),
+            month: parseInt(wip[0][1], 10),
+            day: parseInt(wip[0][2], 10),
+            hour: parseInt(wip[1][0], 10),
+            min: parseInt(wip[1][1], 10),
+            sec: parseInt(wip[1][2][0], 10),
+            ms: parseInt(wip[1][2][1], 10)
+          };
+          if (!isNaN(d.month)) {
+            d.month -= 1;
+          }
+          var time = Date.UTC(d.year, d.month, d.day, d.hour, d.min, d.sec, d.ms);
+          if (!isNaN(time)) {
+            return new Date(time);
+          }
+        }
+      }
+    }
+    return undefined;
+  };
+
+  var prepareKeys = function prepareKeys(query) {
+    var keys = {};
+    for (var i = 0, length = query.length; i < length; i++) {
+      keys[query[i][0]] = query[i][2];
+    }
+    return keys;
+  };
+
+  config.gui.make.addEventListener('click', function () {
+    var call = {
+      from: parseDate(config.gui.from.value),
+      to: parseDate(config.gui.to.value),
+      count: parseInt(config.gui.count.value, 10),
+      noise: parseFloat(config.gui.noise.value),
+      profile: parseInt(config.gui.profile.value),
+      keys: prepareKeys(config.keysUI.query())
+    };
+
+    var error = '';
+
+    //Validate dates
+    if (call.from === undefined) {
+      config.gui.from.value = '';
+      error += 'Wrong value for field: from; ';
+    }
+    if (call.to === undefined) {
+      config.gui.from.value = '';
+      error += 'Wrong value for field: to; ';
+    }
+    if (error === '' && call.from > call.to) {
+      error += 'From date is higher than to date; ';
+    }
+
+    //Validate number fields
+    if (isNaN(call.count) || call.count < 0) {
+      config.gui.count.value = 0;
+      error += 'Count has to be a valid number and can\'t be negative; ';
+    }
+    if (isNaN(call.noise) || call.noise < 0) {
+      config.gui.noise.value = 0;
+      error += 'Noise has to be a valid percentage between 0 and 100; ';
+    } else if (call.noise > 100) {
+      config.gui.noise.value = 100;
+      error += 'Noise has to be a valid percentage between 0 and 100; ';
+    }
+    if (isNaN(call.profile) || [1, 2, 3].indexOf(call.profile) < 0) {
+      config.gui.profile.value = 1;
+      error += 'Profile has to be one of the three valid options';
+    }
+
+    if (error === '') {
+      config.gui.make.disabled = true;
+      config.ps.trigger('make-call', call);
+    } else {
+      config.ps.trigger('error', error);
+    }
+  });
+};
+
+exports.default = prepareCall;
+
+},{}],116:[function(require,module,exports){
 'use strict';
 
 Object.defineProperty(exports, "__esModule", {
@@ -3056,9 +3213,16 @@ Object.defineProperty(exports, "__esModule", {
 
 var _utils = require('./utils');
 
+var _pubsub = require('./query-ui/pubsub');
+
+var _pubsub2 = _interopRequireDefault(_pubsub);
+
+function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { default: obj }; }
+
 var prepareConfig = function prepareConfig(input) {
   var config = {
-    container: (0, _utils.isDOMElement)(input.container) ? input.container : undefined
+    container: (0, _utils.isDOMElement)(input.container) ? input.container : undefined,
+    ps: (0, _pubsub2.default)()
   };
 
   if (!config.container) {
@@ -3070,7 +3234,7 @@ var prepareConfig = function prepareConfig(input) {
 
 exports.default = prepareConfig;
 
-},{"./utils":139}],114:[function(require,module,exports){
+},{"./query-ui/pubsub":140,"./utils":142}],117:[function(require,module,exports){
 'use strict';
 
 Object.defineProperty(exports, "__esModule", {
@@ -3110,7 +3274,7 @@ var getFieldInfo = exports.getFieldInfo = function getFieldInfo(field, config) {
   return [fieldInfo, type, typeInfo];
 };
 
-},{"./utils":138}],115:[function(require,module,exports){
+},{"./utils":141}],118:[function(require,module,exports){
 'use strict';
 
 Object.defineProperty(exports, "__esModule", {
@@ -3184,7 +3348,7 @@ var configConditionAdd = function configConditionAdd(config) {
 
 exports.default = configConditionAdd;
 
-},{"./common":114}],116:[function(require,module,exports){
+},{"./common":117}],119:[function(require,module,exports){
 'use strict';
 
 Object.defineProperty(exports, "__esModule", {
@@ -3213,31 +3377,9 @@ var configConditionRemove = function configConditionRemove(config) {
 
 exports.default = configConditionRemove;
 
-},{}],117:[function(require,module,exports){
-'use strict';
-
-Object.defineProperty(exports, "__esModule", {
-  value: true
-});
-var configErrors = function configErrors(config) {
-  var emptyErrors = function emptyErrors() {
-    var errors = config.gui.errors;
-    while (errors.firstChild) {
-      errors.removeChild(errors.firstChild);
-    }
-  };
-
-  config.ps.on('error', function (message) {
-    emptyErrors();
-    config.gui.errors.appendChild(document.createTextNode(message + ' (click to dismiss)'));
-  });
-
-  config.gui.errors.addEventListener('click', emptyErrors);
-};
-
-exports.default = configErrors;
-
-},{}],118:[function(require,module,exports){
+},{}],120:[function(require,module,exports){
+arguments[4][110][0].apply(exports,arguments)
+},{"dup":110}],121:[function(require,module,exports){
 'use strict';
 
 Object.defineProperty(exports, "__esModule", {
@@ -3266,7 +3408,7 @@ var configFields = function configFields(config) {
 
 exports.default = configFields;
 
-},{"./utils":138}],119:[function(require,module,exports){
+},{"./utils":141}],122:[function(require,module,exports){
 'use strict';
 
 Object.defineProperty(exports, "__esModule", {
@@ -3353,7 +3495,7 @@ var configGraphicQuery = function configGraphicQuery(config) {
 
 exports.default = configGraphicQuery;
 
-},{"./common":114,"./utils":138}],120:[function(require,module,exports){
+},{"./common":117,"./utils":141}],123:[function(require,module,exports){
 'use strict';
 
 Object.defineProperty(exports, "__esModule", {
@@ -3406,7 +3548,7 @@ var configOperators = function configOperators(config) {
 
 exports.default = configOperators;
 
-},{"./common":114,"./utils":138,"lodash/intersection":94}],121:[function(require,module,exports){
+},{"./common":117,"./utils":141,"lodash/intersection":94}],124:[function(require,module,exports){
 'use strict';
 
 Object.defineProperty(exports, "__esModule", {
@@ -3570,7 +3712,7 @@ var configValueInput = function configValueInput(config) {
 
 exports.default = configValueInput;
 
-},{"./common":114,"./datetimepicker/main":128,"./utils":138,"lodash/merge":107}],122:[function(require,module,exports){
+},{"./common":117,"./datetimepicker/main":131,"./utils":141,"lodash/merge":107}],125:[function(require,module,exports){
 'use strict';
 
 Object.defineProperty(exports, "__esModule", {
@@ -3616,7 +3758,7 @@ var createGUI = function createGUI(config) {
 
 exports.default = createGUI;
 
-},{"./utils":138}],123:[function(require,module,exports){
+},{"./utils":141}],126:[function(require,module,exports){
 'use strict';
 
 Object.defineProperty(exports, "__esModule", {
@@ -3693,7 +3835,7 @@ var configDateModify = function configDateModify(config) {
 
 exports.default = configDateModify;
 
-},{"./utils":132}],124:[function(require,module,exports){
+},{"./utils":135}],127:[function(require,module,exports){
 'use strict';
 
 Object.defineProperty(exports, "__esModule", {
@@ -3758,7 +3900,7 @@ var configPickerOpening = function configPickerOpening(config) {
 
 exports.default = configPickerOpening;
 
-},{"./utils":132}],125:[function(require,module,exports){
+},{"./utils":135}],128:[function(require,module,exports){
 'use strict';
 
 Object.defineProperty(exports, "__esModule", {
@@ -3810,7 +3952,7 @@ var createGUI = function createGUI(config) {
 
 exports.default = createGUI;
 
-},{"./utils":132}],126:[function(require,module,exports){
+},{"./utils":135}],129:[function(require,module,exports){
 'use strict';
 
 Object.defineProperty(exports, "__esModule", {
@@ -3868,7 +4010,7 @@ var dateToInput = function dateToInput(config) {
 
 exports.default = dateToInput;
 
-},{}],127:[function(require,module,exports){
+},{}],130:[function(require,module,exports){
 'use strict';
 
 Object.defineProperty(exports, "__esModule", {
@@ -3914,7 +4056,7 @@ var inputToDate = function inputToDate(config) {
 
 exports.default = inputToDate;
 
-},{"./utils":132}],128:[function(require,module,exports){
+},{"./utils":135}],131:[function(require,module,exports){
 'use strict';
 
 Object.defineProperty(exports, "__esModule", {
@@ -3964,7 +4106,7 @@ var datetimepicker = function datetimepicker() {
 
 exports.default = datetimepicker;
 
-},{"./config_date_modify":123,"./config_picker_opening":124,"./create_gui":125,"./prepare_config":129,"./prepare_container":130}],129:[function(require,module,exports){
+},{"./config_date_modify":126,"./config_picker_opening":127,"./create_gui":128,"./prepare_config":132,"./prepare_container":133}],132:[function(require,module,exports){
 'use strict';
 
 Object.defineProperty(exports, "__esModule", {
@@ -4053,7 +4195,7 @@ var prepareConfig = function prepareConfig(params) {
 
 exports.default = prepareConfig;
 
-},{"./date_to_input":126,"./input_to_date":127,"./update_date":131,"./utils":132}],130:[function(require,module,exports){
+},{"./date_to_input":129,"./input_to_date":130,"./update_date":134,"./utils":135}],133:[function(require,module,exports){
 'use strict';
 
 Object.defineProperty(exports, "__esModule", {
@@ -4089,7 +4231,7 @@ var prepareContainer = function prepareContainer(config) {
 
 exports.default = prepareContainer;
 
-},{"./utils":132}],131:[function(require,module,exports){
+},{"./utils":135}],134:[function(require,module,exports){
 'use strict';
 
 Object.defineProperty(exports, "__esModule", {
@@ -4130,7 +4272,7 @@ var updateDate = function updateDate(config) {
 
 exports.default = updateDate;
 
-},{"./utils":132}],132:[function(require,module,exports){
+},{"./utils":135}],135:[function(require,module,exports){
 'use strict';
 
 Object.defineProperty(exports, "__esModule", {
@@ -4193,7 +4335,7 @@ var generateHTML = exports.generateHTML = function generateHTML() {
   return STYLE + '\n<div class="' + PREFIX + '-calendar">\n  <div class="' + PREFIX + '-month-picker">\n    <div class="dtp-month-before dtp-month-pick">&#x276e;</div>\n    <div class="dtp-month"></div>\n    <div class="dtp-month-after dtp-month-pick">&#x276f;</div>\n  </div>\n  <div class="dtp-day-picker">\n    <div class="dtp-week-days">\n      <div class="dtp-week-day">Mo</div>\n      <div class="dtp-week-day">Tu</div>\n      <div class="dtp-week-day">We</div>\n      <div class="dtp-week-day">Th</div>\n      <div class="dtp-week-day">Fr</div>\n      <div class="dtp-week-day">Sa</div>\n      <div class="dtp-week-day">Su</div>\n    </div>\n    <div class="dtp-days"></div>\n  </div>\n</div>\n<div class="dtp-time-picker">\n  <input class="dtp-hour dtp-two-digits" type="number" min="0" max="23">\n  <span class="dtp-time-decorator">:</span>\n  <input class="dtp-minute dtp-two-digits" type="number" min="0" max="59">\n  <span class="dtp-time-decorator">:</span>\n  <input class="dtp-second dtp-two-digits" type="number" min="0" max="59">\n  <span class="dtp-time-decorator">.</span>\n  <input class="dtp-milisecond dtp-three-digits" type="number" min="0"\n    max="999">\n</div>\n<div class="dtp-buttons">\n  <button class="dtp-now">Now</button>\n  <button class="dtp-ok">OK</button>\n</div>';
 };
 
-},{}],133:[function(require,module,exports){
+},{}],136:[function(require,module,exports){
 'use strict';
 
 Object.defineProperty(exports, "__esModule", {
@@ -4269,7 +4411,7 @@ var queryUI = function queryUI() {
 
 exports.default = queryUI;
 
-},{"./config_condition_add":115,"./config_condition_remove":116,"./config_errors":117,"./config_fields":118,"./config_graphic_query":119,"./config_operators":120,"./config_value_input":121,"./create_gui":122,"./prepare_config":136}],134:[function(require,module,exports){
+},{"./config_condition_add":118,"./config_condition_remove":119,"./config_errors":120,"./config_fields":121,"./config_graphic_query":122,"./config_operators":123,"./config_value_input":124,"./create_gui":125,"./prepare_config":139}],137:[function(require,module,exports){
 'use strict';
 
 Object.defineProperty(exports, "__esModule", {
@@ -4289,7 +4431,7 @@ var PARSE_FUNCS = exports.PARSE_FUNCS = {
 
 var DEFAULT_FUNC = exports.DEFAULT_FUNC = 'query-string';
 
-},{"./parse_query_string":135}],135:[function(require,module,exports){
+},{"./parse_query_string":138}],138:[function(require,module,exports){
 'use strict';
 
 Object.defineProperty(exports, "__esModule", {
@@ -4312,7 +4454,7 @@ var parseQueryString = function parseQueryString(query) {
 
 exports.default = parseQueryString;
 
-},{}],136:[function(require,module,exports){
+},{}],139:[function(require,module,exports){
 'use strict';
 
 Object.defineProperty(exports, "__esModule", {
@@ -4366,7 +4508,7 @@ var prepareConfig = function prepareConfig(input) {
 
 exports.default = prepareConfig;
 
-},{"./parse_funcs/index":134,"./pubsub":137,"./utils":138}],137:[function(require,module,exports){
+},{"./parse_funcs/index":137,"./pubsub":140,"./utils":141}],140:[function(require,module,exports){
 'use strict';
 
 Object.defineProperty(exports, "__esModule", {
@@ -4430,7 +4572,7 @@ var pubsub = function pubsub() {
 
 exports.default = pubsub;
 
-},{}],138:[function(require,module,exports){
+},{}],141:[function(require,module,exports){
 'use strict';
 
 Object.defineProperty(exports, "__esModule", {
@@ -4636,7 +4778,7 @@ var generateHTML = exports.generateHTML = function generateHTML(id) {
   return '<div class="qui" id="qui-' + id + '">\n    ' + STYLE + '\n    <div class="qui-input">\n      <select class="qui-field" size="2"></select>\n      <input type="text" class="qui-custom" placeholder="Field name" size="2">\n      </input>\n      <select class="qui-operator" size="2"></select>\n      <div class="qui-user-input">\n        <input type="text" class="qui-value" placeholder="null">\n        <label class="qui-value-label"></label>\n        <select class="qui-list-value"></select>\n        <button class="qui-add" disabled>Add condition</button>\n      </div>\n    </div>\n    <div class="qui-editor">\n      <ul class="qui-graphic-query"></ul>\n      <div class="qui-last-part">\n        <button class="qui-remove" disabled>Remove condition</button>\n        <div class="qui-errors"></div>\n      </div>\n    </div>\n  </div>';
 };
 
-},{}],139:[function(require,module,exports){
+},{}],142:[function(require,module,exports){
 'use strict';
 
 Object.defineProperty(exports, "__esModule", {
@@ -4662,10 +4804,10 @@ var generateID = exports.generateID = function generateID() {
   return id;
 };
 
-var STYLE = '<style>\n  .fake-calls {\n    max-width: 40em;\n    font-family: sans-serif;\n    margin: auto;\n  }\n    .fake-calls .fc-input {\n      display: flex;\n      flex-wrap: wrap;\n    }\n    .fake-calls .fc-input > div {\n      margin-bottom: 1em;\n      display: flex;\n      align-items: center;\n      width: 50%;\n      flex-wrap: wrap;\n    }\n    .fake-calls label {\n      display: inline-block;\n      width: 5em;\n      padding-right: 1em;\n      text-align: right;\n      flex-shrink: 0;\n    }\n    .fake-calls input, .fake-calls select, .fake-calls button {\n      font-size: 100%;\n      font-family: sans-serif;\n      line-height: 1.15;\n      padding: .5em;\n      box-sizing: border-box;\n    }\n    .fake-calls .fc-profile-field {\n      width: 100% !important;\n    }\n    .fake-calls .fc-keys-field {\n      align-items: flex-start !important;\n      width: 100% !important;\n      flex-wrap: nowrap !important;\n    }\n    .fake-calls .fc-keys-container {\n      width: 100%;\n    }\n    .fake-calls .fc-buttons, .fake-calls .fc-post-buttons {\n      display: flex;\n    }\n    .fake-calls .fc-buttons {\n      background-color: #f7f7f7;\n      padding: 1em;\n    }\n    .fake-calls .fc-make {\n      margin-right: 1em;\n      width: 33%;\n    }\n    .fake-calls .fc-buttons > div {\n      width: 100%;\n    }\n    .fake-calls .fc-generated {\n      width: 100%;\n      margin-bottom: 1em;\n    }\n    .fake-calls .fc-post-buttons button {\n      width: 50%;\n    }\n    .fake-calls .fc-download {\n      margin-right: 1em;\n    }\n    .fake-calls .qui .qui-user-input {\n      min-height: auto;\n    }\n    .fake-calls .qui .qui-value, .fake-calls .qui .qui-list-value {\n      margin-bottom: 0;\n    }\n    .fake-calls .dtp-picker input, .fake-calls .dtp-picker button {\n      padding: initial;\n    }\n</style>';
+var STYLE = '<style>\n  .fake-calls {\n    max-width: 40em;\n    font-family: sans-serif;\n    margin: auto;\n  }\n    .fake-calls .fc-input {\n      display: flex;\n      flex-wrap: wrap;\n    }\n    .fake-calls .fc-input > div {\n      margin-bottom: 1em;\n      display: flex;\n      align-items: center;\n      width: 50%;\n      flex-wrap: wrap;\n    }\n    .fake-calls label {\n      display: inline-block;\n      width: 5em;\n      padding-right: 1em;\n      text-align: right;\n      flex-shrink: 0;\n    }\n    .fake-calls input, .fake-calls select, .fake-calls button {\n      font-size: 100%;\n      font-family: sans-serif;\n      line-height: 1.15;\n      padding: .5em;\n      box-sizing: border-box;\n    }\n    .fake-calls .fc-profile-field {\n      width: 100% !important;\n    }\n    .fake-calls .fc-keys-field {\n      align-items: flex-start !important;\n      width: 100% !important;\n      flex-wrap: nowrap !important;\n    }\n    .fake-calls .fc-keys-container {\n      width: 100%;\n    }\n    .fake-calls .fc-buttons, .fake-calls .fc-post-buttons {\n      display: flex;\n    }\n    .fake-calls .fc-buttons {\n      background-color: #f7f7f7;\n      padding: 1em;\n    }\n    .fake-calls .fc-make {\n      margin-right: 1em;\n      width: 33%;\n    }\n    .fake-calls .fc-buttons > div {\n      width: 100%;\n    }\n    .fake-calls .fc-generated {\n      width: 100%;\n      margin-bottom: 1em;\n    }\n    .fake-calls .fc-post-buttons button {\n      width: 50%;\n    }\n    .fake-calls .fc-download {\n      margin-right: 1em;\n    }\n    .fake-calls .fc-errors {\n      font-size: 0.8em;\n      color: #b00;\n      cursor: default;\n      margin-top: .5em;\n    }\n    .fake-calls .qui .qui-user-input {\n      min-height: auto;\n    }\n    .fake-calls .qui .qui-value, .fake-calls .qui .qui-list-value {\n      margin-bottom: 0;\n    }\n    .fake-calls .dtp-picker input, .fake-calls .dtp-picker button {\n      padding: initial;\n    }\n</style>';
 
 var generateHTML = exports.generateHTML = function generateHTML(id) {
-  return '<div class="fake-calls" id="fake-calls-' + id + '">\n    ' + STYLE + '\n    <div class="fc-input">\n      <div class="fc-from-field">\n        <label for="fc-' + id + '-from">From</label>\n        <input type="text" class="fc-from" id="fc-' + id + '-from"></input>\n      </div>\n      <div class="fc-to-field">\n        <label for="fc-' + id + '-to">To</label>\n        <input type="text" class="fc-to" id="fc-' + id + '-to"></input>\n      </div>\n      <div class="fc-count-field">\n        <label for="fc-' + id + '-count">Count</label>\n        <input type="number" class="fc-count" id="fc-' + id + '-count" min="0"\n          value="0"></input>\n      </div>\n      <div class="fc-noise-field">\n        <label for="fc-' + id + '-noise">Noise (%)</label>\n        <input type="number" step="any" min="0" max="100" class="fc-noise"\n          id="fc-' + id + '-noise" value="50"></input>\n      </div>\n      <div class="fc-profile-field">\n        <label for="fc-' + id + '-profile">Profile</label>\n        <select class="fc-profile" id="fc-' + id + '-profile">\n          <option value="1">Valued equally distributed</option>\n          <option value="2">Higher values in middle hours</option>\n          <option value="3">Lower values in middle hours</option>\n        </select>\n      </div>\n      <div class="fc-keys-field">\n        <label>Custom fields for the calls</label>\n        <div class="fc-keys-container" id="fc-' + id + '-keys-container"></div>\n      </div>\n    </div>\n    <div class="fc-buttons">\n      <button class="fc-make" disabled>Make calls</button>\n      <div>\n        <input type="text" class="fc-generated" placeholder="Generated ID">\n        </input>\n        <div class="fc-post-buttons">\n          <button class="fc-download" disabled>Download CSV</button>\n          <button class="fc-remove" disabled>Remove Calls</button>\n        </div>\n      </div>\n    </div>\n  </div>';
+  return '<div class="fake-calls" id="fake-calls-' + id + '">\n    ' + STYLE + '\n    <div class="fc-input">\n      <div class="fc-from-field">\n        <label for="fc-' + id + '-from">From</label>\n        <input type="text" class="fc-from" id="fc-' + id + '-from"></input>\n      </div>\n      <div class="fc-to-field">\n        <label for="fc-' + id + '-to">To</label>\n        <input type="text" class="fc-to" id="fc-' + id + '-to"></input>\n      </div>\n      <div class="fc-count-field">\n        <label for="fc-' + id + '-count">Count</label>\n        <input type="number" class="fc-count" id="fc-' + id + '-count" min="0"\n          value="0"></input>\n      </div>\n      <div class="fc-noise-field">\n        <label for="fc-' + id + '-noise">Noise (%)</label>\n        <input type="number" step="any" min="0" max="100" class="fc-noise"\n          id="fc-' + id + '-noise" value="50"></input>\n      </div>\n      <div class="fc-profile-field">\n        <label for="fc-' + id + '-profile">Profile</label>\n        <select class="fc-profile" id="fc-' + id + '-profile">\n          <option value="1">Valued equally distributed</option>\n          <option value="2">Higher values in middle hours</option>\n          <option value="3">Lower values in middle hours</option>\n        </select>\n      </div>\n      <div class="fc-keys-field">\n        <label>Custom fields for the calls</label>\n        <div class="fc-keys-container" id="fc-' + id + '-keys-container"></div>\n      </div>\n    </div>\n    <div class="fc-buttons">\n      <button class="fc-make">Make calls</button>\n      <div>\n        <input type="text" class="fc-generated" placeholder="Generated ID">\n        </input>\n        <div class="fc-post-buttons">\n          <button class="fc-download" disabled>Download CSV</button>\n          <button class="fc-remove" disabled>Remove Calls</button>\n        </div>\n      </div>\n    </div>\n    <div class="fc-errors"></div>\n  </div>';
 };
 
-},{}]},{},[111]);
+},{}]},{},[112]);

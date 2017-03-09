@@ -15,6 +15,10 @@ let createGUI = function createGUI(config) {
   gui.profile = document.querySelector(`${selector} .fc-profile`);
   gui.noise = document.querySelector(`${selector} .fc-noise`);
   gui.quiContainer = document.querySelector(`${selector} .fc-keys-container`);
+  gui.make = document.querySelector(`${selector} .fc-make`);
+  gui.download = document.querySelector(`${selector} .fc-download`);
+  gui.remove = document.querySelector(`${selector} .fc-remove`);
+  gui.errors = document.querySelector(`${selector} .fc-errors`);
 
   //Validation
   for (let key in gui) {

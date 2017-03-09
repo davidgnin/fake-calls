@@ -81,6 +81,12 @@ const STYLE = `<style>
     .fake-calls .fc-download {
       margin-right: 1em;
     }
+    .fake-calls .fc-errors {
+      font-size: 0.8em;
+      color: #b00;
+      cursor: default;
+      margin-top: .5em;
+    }
     .fake-calls .qui .qui-user-input {
       min-height: auto;
     }
@@ -128,7 +134,7 @@ export let generateHTML = function generateHTML(id) {
       </div>
     </div>
     <div class="fc-buttons">
-      <button class="fc-make" disabled>Make calls</button>
+      <button class="fc-make">Make calls</button>
       <div>
         <input type="text" class="fc-generated" placeholder="Generated ID">
         </input>
@@ -138,5 +144,6 @@ export let generateHTML = function generateHTML(id) {
         </div>
       </div>
     </div>
+    <div class="fc-errors"></div>
   </div>`;
 };
