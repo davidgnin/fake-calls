@@ -3019,7 +3019,60 @@ var createGUI = function createGUI(config) {
 
 exports.default = createGUI;
 
-},{"./query-ui/datetimepicker/main":131,"./query-ui/main":136,"./utils":142}],112:[function(require,module,exports){
+},{"./query-ui/datetimepicker/main":132,"./query-ui/main":137,"./utils":143}],112:[function(require,module,exports){
+'use strict';
+
+Object.defineProperty(exports, "__esModule", {
+  value: true
+});
+
+var _utils = require('./utils');
+
+var _merge = require('lodash/merge');
+
+var _merge2 = _interopRequireDefault(_merge);
+
+function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { default: obj }; }
+
+var MAX_RETRIES = 5;
+
+var generateCalls = function generateCalls(call, callId, onSuccess, onFail) {
+  var data = (0, _merge2.default)(call.keys, {
+    origin: 'manual-fake',
+    id: callId
+  });
+
+  var report = [];
+  var callsLength = call.calls.length;
+  var makeACall = function makeACall(hour, time) {
+    var retry = arguments.length > 2 && arguments[2] !== undefined ? arguments[2] : 1;
+
+    if (hour < callsLength) {
+      _utils.ajax.get('http://barcelona.indymedia.org/dinosaurios', data, function (lel, status) {
+        console.log('lel', lel);
+        report.push({
+          time: time,
+          count: call.calls[hour],
+          status: status
+        });
+        if (status === '200') {
+          makeACall(hour + 1, time + 3600000);
+        } else if (retry < MAX_RETRIES) {
+          makeACall(hour, time, retry + 1);
+        } else {
+          onFail(report);
+        }
+      });
+    } else {
+      onSuccess(report);
+    }
+  };
+  makeACall(0, Date.UTC(call.from.getUTCFullYear(), call.from.getUTCMonth(), call.from.getUTCDate(), call.from.getUTCHours()));
+};
+
+exports.default = generateCalls;
+
+},{"./utils":143,"lodash/merge":107}],113:[function(require,module,exports){
 'use strict';
 
 var _typeof = typeof Symbol === "function" && typeof Symbol.iterator === "symbol" ? function (obj) { return typeof obj; } : function (obj) { return obj && typeof Symbol === "function" && obj.constructor === Symbol && obj !== Symbol.prototype ? "symbol" : typeof obj; };
@@ -3049,7 +3102,7 @@ function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { de
   return _main2.default;
 }, undefined);
 
-},{"./main":113}],113:[function(require,module,exports){
+},{"./main":114}],114:[function(require,module,exports){
 'use strict';
 
 Object.defineProperty(exports, "__esModule", {
@@ -3067,6 +3120,10 @@ var _create_gui2 = _interopRequireDefault(_create_gui);
 var _config_errors = require('./config_errors');
 
 var _config_errors2 = _interopRequireDefault(_config_errors);
+
+var _generate_calls = require('./generate_calls');
+
+var _generate_calls2 = _interopRequireDefault(_generate_calls);
 
 var _prepare_call = require('./prepare_call');
 
@@ -3086,13 +3143,14 @@ var fakeCalls = function fakeCalls() {
 
   (0, _config_errors2.default)(config);
 
+  config.generateCalls = _generate_calls2.default;
   (0, _prepare_call2.default)(config);
   (0, _manage_calls2.default)(config);
 };
 
 exports.default = fakeCalls;
 
-},{"./config_errors":110,"./create_gui":111,"./manage_calls":114,"./prepare_call":115,"./prepare_config":116}],114:[function(require,module,exports){
+},{"./config_errors":110,"./create_gui":111,"./generate_calls":112,"./manage_calls":115,"./prepare_call":116,"./prepare_config":117}],115:[function(require,module,exports){
 'use strict';
 
 Object.defineProperty(exports, "__esModule", {
@@ -3102,6 +3160,7 @@ Object.defineProperty(exports, "__esModule", {
 var _utils = require('./utils');
 
 var manageCalls = function manageCalls(config) {
+  //let calls = [];
 
   var calcCallNum = function calcCallNum(from, to) {
     return (Date.UTC(to.getUTCFullYear(), to.getUTCMonth(), to.getUTCDate(), to.getUTCHours()) - Date.UTC(from.getUTCFullYear(), from.getUTCMonth(), from.getUTCDate(), from.getUTCHours())) / 3600000 + 1;
@@ -3196,6 +3255,10 @@ var manageCalls = function manageCalls(config) {
     return calls;
   };
 
+  var generateCallId = function generateCallId() {
+    return Date.now().toString() + Math.round(Math.random() * 10000);
+  };
+
   config.ps.on('make-call', function (call) {
     var hours = calcCallNum(call.from, call.to);
     var days = calcDaysNum(call.from, call.to);
@@ -3207,16 +3270,27 @@ var manageCalls = function manageCalls(config) {
     } else {
       dayCounts = generateDayCounts(days, call.count, call.noise, hourIndex, call.to.getUTCHours() + 1);
     }
-    console.log('dayCounts', dayCounts);
 
     call.calls = generateCountByCall(hours, hourIndex, dayCounts, _utils.PROFILES[call.profile - 1]);
-    console.log('calls', call.calls);
+
+    var callId = generateCallId();
+
+    var onSuccess = function onSuccess(report) {
+      console.log('success report', report);
+    };
+    var onFail = function onFail(report) {
+      console.log('fail report', report);
+      if (window.confirm('An error occurred making the calls. Do you want to ' + 'retry it?')) {
+        config.generateCalls(call, callId, onSuccess, onFail);
+      }
+    };
+    config.generateCalls(call, callId, onSuccess, onFail);
   });
 };
 
 exports.default = manageCalls;
 
-},{"./utils":142}],115:[function(require,module,exports){
+},{"./utils":143}],116:[function(require,module,exports){
 'use strict';
 
 Object.defineProperty(exports, "__esModule", {
@@ -3314,7 +3388,7 @@ var prepareCall = function prepareCall(config) {
 
 exports.default = prepareCall;
 
-},{}],116:[function(require,module,exports){
+},{}],117:[function(require,module,exports){
 'use strict';
 
 Object.defineProperty(exports, "__esModule", {
@@ -3344,7 +3418,7 @@ var prepareConfig = function prepareConfig(input) {
 
 exports.default = prepareConfig;
 
-},{"./query-ui/pubsub":140,"./utils":142}],117:[function(require,module,exports){
+},{"./query-ui/pubsub":141,"./utils":143}],118:[function(require,module,exports){
 'use strict';
 
 Object.defineProperty(exports, "__esModule", {
@@ -3384,7 +3458,7 @@ var getFieldInfo = exports.getFieldInfo = function getFieldInfo(field, config) {
   return [fieldInfo, type, typeInfo];
 };
 
-},{"./utils":141}],118:[function(require,module,exports){
+},{"./utils":142}],119:[function(require,module,exports){
 'use strict';
 
 Object.defineProperty(exports, "__esModule", {
@@ -3458,7 +3532,7 @@ var configConditionAdd = function configConditionAdd(config) {
 
 exports.default = configConditionAdd;
 
-},{"./common":117}],119:[function(require,module,exports){
+},{"./common":118}],120:[function(require,module,exports){
 'use strict';
 
 Object.defineProperty(exports, "__esModule", {
@@ -3487,9 +3561,9 @@ var configConditionRemove = function configConditionRemove(config) {
 
 exports.default = configConditionRemove;
 
-},{}],120:[function(require,module,exports){
+},{}],121:[function(require,module,exports){
 arguments[4][110][0].apply(exports,arguments)
-},{"dup":110}],121:[function(require,module,exports){
+},{"dup":110}],122:[function(require,module,exports){
 'use strict';
 
 Object.defineProperty(exports, "__esModule", {
@@ -3518,7 +3592,7 @@ var configFields = function configFields(config) {
 
 exports.default = configFields;
 
-},{"./utils":141}],122:[function(require,module,exports){
+},{"./utils":142}],123:[function(require,module,exports){
 'use strict';
 
 Object.defineProperty(exports, "__esModule", {
@@ -3605,7 +3679,7 @@ var configGraphicQuery = function configGraphicQuery(config) {
 
 exports.default = configGraphicQuery;
 
-},{"./common":117,"./utils":141}],123:[function(require,module,exports){
+},{"./common":118,"./utils":142}],124:[function(require,module,exports){
 'use strict';
 
 Object.defineProperty(exports, "__esModule", {
@@ -3658,7 +3732,7 @@ var configOperators = function configOperators(config) {
 
 exports.default = configOperators;
 
-},{"./common":117,"./utils":141,"lodash/intersection":94}],124:[function(require,module,exports){
+},{"./common":118,"./utils":142,"lodash/intersection":94}],125:[function(require,module,exports){
 'use strict';
 
 Object.defineProperty(exports, "__esModule", {
@@ -3822,7 +3896,7 @@ var configValueInput = function configValueInput(config) {
 
 exports.default = configValueInput;
 
-},{"./common":117,"./datetimepicker/main":131,"./utils":141,"lodash/merge":107}],125:[function(require,module,exports){
+},{"./common":118,"./datetimepicker/main":132,"./utils":142,"lodash/merge":107}],126:[function(require,module,exports){
 'use strict';
 
 Object.defineProperty(exports, "__esModule", {
@@ -3868,7 +3942,7 @@ var createGUI = function createGUI(config) {
 
 exports.default = createGUI;
 
-},{"./utils":141}],126:[function(require,module,exports){
+},{"./utils":142}],127:[function(require,module,exports){
 'use strict';
 
 Object.defineProperty(exports, "__esModule", {
@@ -3945,7 +4019,7 @@ var configDateModify = function configDateModify(config) {
 
 exports.default = configDateModify;
 
-},{"./utils":135}],127:[function(require,module,exports){
+},{"./utils":136}],128:[function(require,module,exports){
 'use strict';
 
 Object.defineProperty(exports, "__esModule", {
@@ -4010,7 +4084,7 @@ var configPickerOpening = function configPickerOpening(config) {
 
 exports.default = configPickerOpening;
 
-},{"./utils":135}],128:[function(require,module,exports){
+},{"./utils":136}],129:[function(require,module,exports){
 'use strict';
 
 Object.defineProperty(exports, "__esModule", {
@@ -4062,7 +4136,7 @@ var createGUI = function createGUI(config) {
 
 exports.default = createGUI;
 
-},{"./utils":135}],129:[function(require,module,exports){
+},{"./utils":136}],130:[function(require,module,exports){
 'use strict';
 
 Object.defineProperty(exports, "__esModule", {
@@ -4120,7 +4194,7 @@ var dateToInput = function dateToInput(config) {
 
 exports.default = dateToInput;
 
-},{}],130:[function(require,module,exports){
+},{}],131:[function(require,module,exports){
 'use strict';
 
 Object.defineProperty(exports, "__esModule", {
@@ -4166,7 +4240,7 @@ var inputToDate = function inputToDate(config) {
 
 exports.default = inputToDate;
 
-},{"./utils":135}],131:[function(require,module,exports){
+},{"./utils":136}],132:[function(require,module,exports){
 'use strict';
 
 Object.defineProperty(exports, "__esModule", {
@@ -4216,7 +4290,7 @@ var datetimepicker = function datetimepicker() {
 
 exports.default = datetimepicker;
 
-},{"./config_date_modify":126,"./config_picker_opening":127,"./create_gui":128,"./prepare_config":132,"./prepare_container":133}],132:[function(require,module,exports){
+},{"./config_date_modify":127,"./config_picker_opening":128,"./create_gui":129,"./prepare_config":133,"./prepare_container":134}],133:[function(require,module,exports){
 'use strict';
 
 Object.defineProperty(exports, "__esModule", {
@@ -4305,7 +4379,7 @@ var prepareConfig = function prepareConfig(params) {
 
 exports.default = prepareConfig;
 
-},{"./date_to_input":129,"./input_to_date":130,"./update_date":134,"./utils":135}],133:[function(require,module,exports){
+},{"./date_to_input":130,"./input_to_date":131,"./update_date":135,"./utils":136}],134:[function(require,module,exports){
 'use strict';
 
 Object.defineProperty(exports, "__esModule", {
@@ -4341,7 +4415,7 @@ var prepareContainer = function prepareContainer(config) {
 
 exports.default = prepareContainer;
 
-},{"./utils":135}],134:[function(require,module,exports){
+},{"./utils":136}],135:[function(require,module,exports){
 'use strict';
 
 Object.defineProperty(exports, "__esModule", {
@@ -4382,7 +4456,7 @@ var updateDate = function updateDate(config) {
 
 exports.default = updateDate;
 
-},{"./utils":135}],135:[function(require,module,exports){
+},{"./utils":136}],136:[function(require,module,exports){
 'use strict';
 
 Object.defineProperty(exports, "__esModule", {
@@ -4445,7 +4519,7 @@ var generateHTML = exports.generateHTML = function generateHTML() {
   return STYLE + '\n<div class="' + PREFIX + '-calendar">\n  <div class="' + PREFIX + '-month-picker">\n    <div class="dtp-month-before dtp-month-pick">&#x276e;</div>\n    <div class="dtp-month"></div>\n    <div class="dtp-month-after dtp-month-pick">&#x276f;</div>\n  </div>\n  <div class="dtp-day-picker">\n    <div class="dtp-week-days">\n      <div class="dtp-week-day">Mo</div>\n      <div class="dtp-week-day">Tu</div>\n      <div class="dtp-week-day">We</div>\n      <div class="dtp-week-day">Th</div>\n      <div class="dtp-week-day">Fr</div>\n      <div class="dtp-week-day">Sa</div>\n      <div class="dtp-week-day">Su</div>\n    </div>\n    <div class="dtp-days"></div>\n  </div>\n</div>\n<div class="dtp-time-picker">\n  <input class="dtp-hour dtp-two-digits" type="number" min="0" max="23">\n  <span class="dtp-time-decorator">:</span>\n  <input class="dtp-minute dtp-two-digits" type="number" min="0" max="59">\n  <span class="dtp-time-decorator">:</span>\n  <input class="dtp-second dtp-two-digits" type="number" min="0" max="59">\n  <span class="dtp-time-decorator">.</span>\n  <input class="dtp-milisecond dtp-three-digits" type="number" min="0"\n    max="999">\n</div>\n<div class="dtp-buttons">\n  <button class="dtp-now">Now</button>\n  <button class="dtp-ok">OK</button>\n</div>';
 };
 
-},{}],136:[function(require,module,exports){
+},{}],137:[function(require,module,exports){
 'use strict';
 
 Object.defineProperty(exports, "__esModule", {
@@ -4521,7 +4595,7 @@ var queryUI = function queryUI() {
 
 exports.default = queryUI;
 
-},{"./config_condition_add":118,"./config_condition_remove":119,"./config_errors":120,"./config_fields":121,"./config_graphic_query":122,"./config_operators":123,"./config_value_input":124,"./create_gui":125,"./prepare_config":139}],137:[function(require,module,exports){
+},{"./config_condition_add":119,"./config_condition_remove":120,"./config_errors":121,"./config_fields":122,"./config_graphic_query":123,"./config_operators":124,"./config_value_input":125,"./create_gui":126,"./prepare_config":140}],138:[function(require,module,exports){
 'use strict';
 
 Object.defineProperty(exports, "__esModule", {
@@ -4541,7 +4615,7 @@ var PARSE_FUNCS = exports.PARSE_FUNCS = {
 
 var DEFAULT_FUNC = exports.DEFAULT_FUNC = 'query-string';
 
-},{"./parse_query_string":138}],138:[function(require,module,exports){
+},{"./parse_query_string":139}],139:[function(require,module,exports){
 'use strict';
 
 Object.defineProperty(exports, "__esModule", {
@@ -4564,7 +4638,7 @@ var parseQueryString = function parseQueryString(query) {
 
 exports.default = parseQueryString;
 
-},{}],139:[function(require,module,exports){
+},{}],140:[function(require,module,exports){
 'use strict';
 
 Object.defineProperty(exports, "__esModule", {
@@ -4618,7 +4692,7 @@ var prepareConfig = function prepareConfig(input) {
 
 exports.default = prepareConfig;
 
-},{"./parse_funcs/index":137,"./pubsub":140,"./utils":141}],140:[function(require,module,exports){
+},{"./parse_funcs/index":138,"./pubsub":141,"./utils":142}],141:[function(require,module,exports){
 'use strict';
 
 Object.defineProperty(exports, "__esModule", {
@@ -4682,7 +4756,7 @@ var pubsub = function pubsub() {
 
 exports.default = pubsub;
 
-},{}],141:[function(require,module,exports){
+},{}],142:[function(require,module,exports){
 'use strict';
 
 Object.defineProperty(exports, "__esModule", {
@@ -4888,7 +4962,7 @@ var generateHTML = exports.generateHTML = function generateHTML(id) {
   return '<div class="qui" id="qui-' + id + '">\n    ' + STYLE + '\n    <div class="qui-input">\n      <select class="qui-field" size="2"></select>\n      <input type="text" class="qui-custom" placeholder="Field name" size="2">\n      </input>\n      <select class="qui-operator" size="2"></select>\n      <div class="qui-user-input">\n        <input type="text" class="qui-value" placeholder="null">\n        <label class="qui-value-label"></label>\n        <select class="qui-list-value"></select>\n        <button class="qui-add" disabled>Add condition</button>\n      </div>\n    </div>\n    <div class="qui-editor">\n      <ul class="qui-graphic-query"></ul>\n      <div class="qui-last-part">\n        <button class="qui-remove" disabled>Remove condition</button>\n        <div class="qui-errors"></div>\n      </div>\n    </div>\n  </div>';
 };
 
-},{}],142:[function(require,module,exports){
+},{}],143:[function(require,module,exports){
 'use strict';
 
 Object.defineProperty(exports, "__esModule", {
@@ -4896,6 +4970,61 @@ Object.defineProperty(exports, "__esModule", {
 });
 
 var _typeof = typeof Symbol === "function" && typeof Symbol.iterator === "symbol" ? function (obj) { return typeof obj; } : function (obj) { return obj && typeof Symbol === "function" && obj.constructor === Symbol && obj !== Symbol.prototype ? "symbol" : typeof obj; };
+
+var ajax = exports.ajax = {};
+ajax.x = function () {
+  if (typeof XMLHttpRequest !== 'undefined') {
+    return new XMLHttpRequest();
+  }
+  var versions = ['MSXML2.XmlHttp.6.0', 'MSXML2.XmlHttp.5.0', 'MSXML2.XmlHttp.4.0', 'MSXML2.XmlHttp.3.0', 'MSXML2.XmlHttp.2.0', 'Microsoft.XmlHttp'];
+
+  var xhr = void 0;
+  for (var i = 0; i < versions.length; i++) {
+    try {
+      xhr = new ActiveXObject(versions[i]);
+      break;
+    } catch (e) {}
+  }
+  return xhr;
+};
+
+ajax.send = function (url, callback, method, data, async) {
+  if (async === undefined) {
+    async = true;
+  }
+  var x = ajax.x();
+  x.open(method, url, async);
+  x.onreadystatechange = function () {
+    if (x.readyState === 4) {
+      callback(x.responseText, x.status);
+    }
+  };
+  if (method === 'POST') {
+    x.setRequestHeader('Content-type', 'application/x-www-form-urlencoded');
+  }
+  x.send(data);
+};
+
+ajax.get = function (url, data, callback, async) {
+  var query = [];
+  for (var key in data) {
+    if (data.hasOwnProperty(key)) {
+      query.push(encodeURIComponent(key) + '=' + encodeURIComponent(data[key]));
+    }
+  }
+  var concat = url.indexOf('?') >= 0 ? '&' : '?';
+  ajax.send(url + (query.length ? concat + query.join('&') : ''), callback, 'GET', null, async);
+};
+
+ajax.post = function (url, data, callback, async) {
+  var query = [];
+  for (var key in data) {
+    if (data.hasOwnProperty(key)) {
+      query.push(encodeURIComponent(key) + '=' + encodeURIComponent(data[key]));
+    }
+  }
+  ajax.send(url, callback, 'POST', query.join('&'), async);
+};
 
 var isDOMElement = exports.isDOMElement = function isDOMElement(o) {
   return (typeof HTMLElement === 'undefined' ? 'undefined' : _typeof(HTMLElement)) === 'object' ? o instanceof HTMLElement : //DOM2
@@ -4922,4 +5051,4 @@ var generateHTML = exports.generateHTML = function generateHTML(id) {
   return '<div class="fake-calls" id="fake-calls-' + id + '">\n    ' + STYLE + '\n    <div class="fc-input">\n      <div class="fc-from-field">\n        <label for="fc-' + id + '-from">From</label>\n        <input type="text" class="fc-from" id="fc-' + id + '-from"></input>\n      </div>\n      <div class="fc-to-field">\n        <label for="fc-' + id + '-to">To</label>\n        <input type="text" class="fc-to" id="fc-' + id + '-to"></input>\n      </div>\n      <div class="fc-count-field">\n        <label for="fc-' + id + '-count">Count</label>\n        <input type="number" class="fc-count" id="fc-' + id + '-count" min="0"\n          value="0"></input>\n      </div>\n      <div class="fc-noise-field">\n        <label for="fc-' + id + '-noise">Noise (%)</label>\n        <input type="number" step="any" min="0" max="100" class="fc-noise"\n          id="fc-' + id + '-noise" value="50"></input>\n      </div>\n      <div class="fc-profile-field">\n        <label for="fc-' + id + '-profile">Profile</label>\n        <select class="fc-profile" id="fc-' + id + '-profile">\n          <option value="1">Valued equally distributed</option>\n          <option value="2">Higher values in middle hours</option>\n          <option value="3">Lower values in middle hours</option>\n        </select>\n      </div>\n      <div class="fc-keys-field">\n        <label>Custom fields for the calls</label>\n        <div class="fc-keys-container" id="fc-' + id + '-keys-container"></div>\n      </div>\n    </div>\n    <div class="fc-buttons">\n      <button class="fc-make">Make calls</button>\n      <div>\n        <select class="fc-generated"></select>\n        <div class="fc-post-buttons">\n          <button class="fc-download" disabled>Download CSV</button>\n          <button class="fc-remove" disabled>Remove Calls</button>\n        </div>\n      </div>\n    </div>\n    <div class="fc-errors"></div>\n  </div>';
 };
 
-},{}]},{},[112]);
+},{}]},{},[113]);

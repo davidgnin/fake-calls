@@ -2,6 +2,7 @@
 import prepareConfig from './prepare_config';
 import createGUI from './create_gui';
 import configErrors from './config_errors';
+import generateCalls from './generate_calls';
 import prepareCall from './prepare_call';
 import manageCalls from './manage_calls';
 
@@ -11,6 +12,7 @@ let fakeCalls = function fakeCalls(input = {}) {
 
   configErrors(config);
 
+  config.generateCalls = generateCalls;
   prepareCall(config);
   manageCalls(config);
 };

@@ -2,6 +2,7 @@
 import { PROFILES } from './utils';
 
 let manageCalls = function manageCalls(config) {
+  //let calls = [];
 
   let calcCallNum = function calcCallNum(from, to) {
     return (Date.UTC(to.getUTCFullYear(), to.getUTCMonth(), to.getUTCDate(),
@@ -102,6 +103,10 @@ let manageCalls = function manageCalls(config) {
     return calls;
   };
 
+  let generateCallId = function generateCallId() {
+    return Date.now().toString() + Math.round(Math.random()*10000);
+  };
+
   config.ps.on('make-call', function (call) {
     let hours = calcCallNum(call.from, call.to);
     let days = calcDaysNum(call.from, call.to);
@@ -114,11 +119,23 @@ let manageCalls = function manageCalls(config) {
       dayCounts = generateDayCounts(days, call.count, call.noise, hourIndex,
         call.to.getUTCHours() + 1);
     }
-    console.log('dayCounts', dayCounts);
 
     call.calls = generateCountByCall(hours, hourIndex, dayCounts,
       PROFILES[call.profile - 1]);
-    console.log('calls', call.calls);
+
+    let callId = generateCallId();
+
+    let onSuccess = function onSuccess(report) {
+      console.log('success report', report);
+    };
+    let onFail = function onFail(report) {
+      console.log('fail report', report);
+      if (window.confirm('An error occurred making the calls. Do you want to ' +
+        'retry it?')) {
+        config.generateCalls(call, callId, onSuccess, onFail);
+      }
+    };
+    config.generateCalls(call, callId, onSuccess, onFail);
   });
 };
 
